@@ -171,4 +171,5 @@ async def cek(ctx, *, kode):
         await ctx.send("⚠️ Terjadi kesalahan saat memproses data.")
         print(f"❌ Error: {e}")
 
+
 bot.run(TOKEN)
