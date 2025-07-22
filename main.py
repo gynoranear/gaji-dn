@@ -4,9 +4,7 @@ from discord.ext import commands
 import pandas as pd
 import aiohttp
 from datetime import datetime
-
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
 
@@ -29,7 +27,7 @@ hari_dict = {
 
 @bot.event
 async def on_ready():
-    print(f"Bot {bot.user} is now online!")
+    print(f"✅ Bot {bot.user} is now online!")
 
 @bot.command()
 async def cek(ctx, *, kode):
@@ -37,7 +35,10 @@ async def cek(ctx, *, kode):
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
+            async with session.get(EXCEL_URL) as resp:
+                if resp.status != 200:
+                    await ctx.send(f"Gagal mengambil data (status {resp.status})")
+                    return
                 with open("data.xlsx", "wb") as f:
                     f.write(await resp.read())
 
@@ -168,6 +169,6 @@ async def cek(ctx, *, kode):
 
     except Exception as e:
         await ctx.send("⚠️ Terjadi kesalahan saat memproses data.")
-        print(f"Error: {e}")
+        print(f"❌ Error: {e}")
 
 bot.run(TOKEN)
