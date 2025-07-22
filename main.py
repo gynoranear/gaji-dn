@@ -5,7 +5,13 @@ import pandas as pd
 import aiohttp
 from datetime import datetime
 
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
 TOKEN = os.getenv("DISCORD_TOKEN")
+EXCEL_URL = os.getenv("EXCEL_URL")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -28,7 +34,6 @@ async def on_ready():
 @bot.command()
 async def cek(ctx, *, kode):
     await ctx.send(f"Mencari data untuk kode: `{kode}` ...")
-    url = os.getenv("EXCEL_URL")
 
     try:
         async with aiohttp.ClientSession() as session:
