@@ -149,7 +149,7 @@ async def cek(ctx, *, kode):
             if run2_replacements:
                 run2_info = "\n**Catatan pergantian run 2:**\n" + "\n".join(run2_replacements)
 
-pesan = f"""
+        pesan = f"""
 📌 Code   : `{kode.upper()}`
 📦 Type   : {jenis}
 📅 Date   : {tanggal}
