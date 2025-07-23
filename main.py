@@ -1,4 +1,6 @@
 import os
+import threading
+from flask import Flask
 import discord
 from discord.ext import commands
 import pandas as pd
@@ -6,11 +8,27 @@ import aiohttp
 from datetime import datetime
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 EXCEL_URL = os.getenv("EXCEL_URL")
 
+# ——— HEALTH-CHECK SERVER UNTUK RENDER.COM ——————————————————
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "OK"
+
+def run_health():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
+threading.Thread(target=run_health, daemon=True).start()
+# ————————————————————————————————————————————————————————————
+
+# ——— DISCORD BOT SETUP ——————————————————————————————————
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -96,9 +114,7 @@ async def on_ready():
 async def cek(ctx, *, kode):
     """Cari data kode dan tampilkan informasi gajian."""
     await ctx.send(f"Mencari data untuk kode: `{kode}` ...")
-
     try:
-        # Ambil data Excel
         async with aiohttp.ClientSession() as session:
             async with session.get(EXCEL_URL) as resp:
                 if resp.status != 200:
@@ -110,8 +126,6 @@ async def cek(ctx, *, kode):
         df = pd.read_excel("data.xlsx", sheet_name="Data", header=None)
         kode_input = kode.lower().strip()
         indeks_awal = None
-
-        # Cari blok berdasarkan 27 baris
         for i in range(0, len(df), 27):
             cell = str(df.iloc[i,1]).lower().strip()
             if "/" in cell:
@@ -119,13 +133,11 @@ async def cek(ctx, *, kode):
             if cell == kode_input:
                 indeks_awal = i
                 break
-
         if indeks_awal is None:
             return await ctx.send("❌ Data tidak ditemukan.")
 
         jenis = "Classic" if kode_input.startswith("cl") else "Core"
 
-        # Tanggal
         tanggal_cell = df.iloc[indeks_awal + 1, 1]
         try:
             tanggal_obj = pd.to_datetime(tanggal_cell)
@@ -134,34 +146,34 @@ async def cek(ctx, *, kode):
         except:
             tanggal = str(tanggal_cell)
 
-        # Status gajian
         status_cell = str(df.iloc[indeks_awal + 1, 10]).strip().lower()
-        if status_cell == "beres": hasil = "✅ BERES"
-        elif status_cell == "belum beres": hasil = "❌ BELUM BERES"
-        else: hasil = "❓ STATUS TIDAK DIKENALI"
+        if status_cell == "beres":
+            hasil = "✅ BERES"
+        elif status_cell == "belum beres":
+            hasil = "❌ BELUM BERES"
+        else:
+            hasil = "❓ STATUS TIDAK DIKENALI"
 
-        # Peserta dan drop items
-        # ... (kode peserta dan drop items tetap sama seperti sebelumnya) ...
         peserta_terakhir = str(df.iloc[indeks_awal + 17, 1]).strip()
-        jumlah_run = "1x Run" if jenis == "Classic" or peserta_terakhir.lower() in ["","nan"] else "2x Run"
+        jumlah_run = "1x Run" if jenis == "Classic" or peserta_terakhir.lower() in ["", "nan"] else "2x Run"
 
-        # Drop items
         drop_items = []
         if jenis == "Classic":
             item_harga_map = [
-                (indeks_awal+9, indeks_awal+12),
-                (indeks_awal+13, indeks_awal+14),
-                (indeks_awal+16, indeks_awal+17),
+                (indeks_awal + 9, indeks_awal + 12),
+                (indeks_awal + 13, indeks_awal + 14),
+                (indeks_awal + 16, indeks_awal + 17),
             ]
         else:
             item_harga_map = [
-                (indeks_awal+9, indeks_awal+10),
-                (indeks_awal+12, indeks_awal+13),
-                (indeks_awal+15, indeks_awal+16),
+                (indeks_awal + 9, indeks_awal + 10),
+                (indeks_awal + 12, indeks_awal + 13),
+                (indeks_awal + 15, indeks_awal + 16),
             ]
         for item_row, harga_row in item_harga_map:
-            for col in range(3,8):
-                if item_row>=len(df) or harga_row>=len(df): continue
+            for col in range(3, 8):
+                if item_row >= len(df) or harga_row >= len(df):
+                    continue
                 item = df.iat[item_row, col]
                 harga = df.iat[harga_row, col]
                 if pd.notna(item) and str(item).strip():
@@ -171,7 +183,6 @@ async def cek(ctx, *, kode):
                     else:
                         drop_items.append(f"❌ {item_str}")
 
-        # Peserta
         peserta = []
         for j in range(8):
             row = indeks_awal + 10 + j
@@ -180,27 +191,27 @@ async def cek(ctx, *, kode):
             status_idx = 13 if jenis.lower() == "core" else 14
             status_n = str(df.iloc[row, status_idx]).strip().lower()
             if pd.notna(ign) and ign:
-                tanda = "✅" if status_n in ["sudah lunas","lunas"] else ("❌" if status_n in ["belum lunas"] else "❓")
+                tanda = "✅" if status_n in ["sudah lunas", "lunas"] else ("❌" if status_n in ["belum lunas"] else "❓")
                 peserta.append(f"{tanda} {ign} ({pilot})")
 
-        # Run 2 info (Core)
         run2_info = ""
         if jenis.lower() == "core" and jumlah_run == "2x Run":
             run2_repls = []
             for j in range(8):
                 base = indeks_awal + 10 + j
-                ign1 = str(df.iloc[base,0]).strip()
-                pilot1 = str(df.iloc[base,1]).strip()
-                ign2 = str(df.iloc[base,15]).strip()
-                pilot2 = str(df.iloc[base,16]).strip()
-                status2 = str(df.iloc[base,18]).strip().lower()
-                if not ign2 and not pilot2: continue
-                st = "✅" if status2=="lunas" else ("❌" if status2=="belum lunas" else "❓")
-                if ign1.lower()==ign2.lower() and pilot1.lower()!=pilot2.lower():
+                ign1 = str(df.iloc[base, 0]).strip()
+                pilot1 = str(df.iloc[base, 1]).strip()
+                ign2 = str(df.iloc[base, 15]).strip()
+                pilot2 = str(df.iloc[base, 16]).strip()
+                status2 = str(df.iloc[base, 18]).strip().lower()
+                if not ign2 and not pilot2:
+                    continue
+                st = "✅" if status2 == "lunas" else ("❌" if status2 == "belum lunas" else "❓")
+                if ign1.lower() == ign2.lower() and pilot1.lower() != pilot2.lower():
                     run2_repls.append(f"~~{ign1}~~ → {ign2} ({pilot2}) {st}")
-                elif ign1.lower()!=ign2.lower() and pilot1.lower()==pilot2.lower():
+                elif ign1.lower() != ign2.lower() and pilot1.lower() == pilot2.lower():
                     run2_repls.append(f"~~{ign1}~~ → {ign2}")
-                elif ign1.lower()!=ign2.lower() and pilot1.lower()!=pilot2.lower():
+                elif ign1.lower() != ign2.lower() and pilot1.lower() != pilot2.lower():
                     run2_repls.append(f"~~{ign1} ({pilot1})~~ → {ign2} ({pilot2}) {st}")
             if run2_repls:
                 run2_info = "\n**Catatan pergantian run 2:**\n" + "\n".join(run2_repls)
@@ -251,7 +262,8 @@ async def ping(ctx, *, kode):
         indeks_awal = None
         for i in range(0, len(df), 27):
             cell = str(df.iloc[i,1]).lower().strip()
-            if "/" in cell: cell = cell.split("/")[-1]
+            if "/" in cell:
+                cell = cell.split("/")[-1]
             if cell == kode_input:
                 indeks_awal = i
                 break
@@ -265,6 +277,7 @@ async def ping(ctx, *, kode):
         if not tags:
             return await ctx.send("❌ Tidak ada pilot valid untuk di-ping.")
         await ctx.send(" ".join(tags))
+
     except Exception as e:
         print(f"❌ Error !ping: {e}")
         await ctx.send("⚠️ Terjadi kesalahan saat memproses ping.")
