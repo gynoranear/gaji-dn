@@ -61,7 +61,24 @@ hari_dict = {
 
 pilot_ids = {
     'abuan':'1298923893121351694','acenk':'1064220685611827200','boken':'884138267031781436',
-    # … semua mapping …
+    'chan':'410375555708616706','dansu':'549091908815945764','darrel':'915194622047838229',
+    'dendi':'782554583468867584','kyu':'1253017447162712125','naellza':'283210722740011008',
+    'rendi':'935586563004456991','robet':'465717181733142529','rotimitsu':'462286148014833684',
+    'san':'295531896119492610','adhe':'1357972698948440065','aingwae':'1046077925776171028',
+    'alvian':'961456254486741003','amancha':'1119789372661841940','aquaa':'780089709346684968',
+    'ari':'605402286931574784','ariefeko':'923233290008268800','asep':'308080448913932298',
+    'ayam':'1099044843235328073','bayu':'1175027369464049675','binoy':'568088651666423818',
+    'bryn':'1052498777044418600','budi':'906508313452232714','cado':'565319883760336896',
+    'dedy':'1354668608508137553','demise':'1375812022645821532','dienzer':'434668876702416896',
+    'dylance':'235412551922483200','erickoston':'959679338607964171','faizar':'380772532883685376',
+    'finm':'1185550143211192330','fiqry':'450614677911633934','imari':'1031842209152106526',
+    'genz':'1096058282570948709','haniel':'322014651040661514','hanif':'573999520598458368',
+    'iky':'630381424700030996','jay':'1003647336741883904','irvanh':'1367807282859085824',
+    'maron':'734727203203579936','nan':'418014287987212288','nnuday':'353344061471719425',
+    'pachul':'1074953978267324466','raply':'401276901328551936','rey':'1371991852290543778',
+    'roxy':'934116775946240060','rudy':'1100287172994674749','songel':'442311898357301258',
+    'tini':'266527276051595274','orbi':'455407919702212619','vezot':'1344928060159561801',
+    'xenk':'355887335440777220','yan':'558301901909786635','yunus':'1344336844032053379',
     'zen':'346173796241244160','zetan':'430677429023932426',
 }
 
@@ -141,17 +158,13 @@ async def cek(ctx, *, kode):
                 i2 = str(df.iloc[b,15]).strip()
                 p2 = str(df.iloc[b,16]).strip()
                 s2 = str(df.iloc[b,18]).strip().lower()
-                # lewati yang kosong dan yang identik
                 if not i2 and not p2: continue
                 if i1.lower()==i2.lower() and p1.lower()==p2.lower(): continue
                 em = "✅" if s2=="lunas" else ("❌" if s2=="belum lunas" else "❓")
-                # ubah hanya IGN jika pilot sama
                 if i1.lower()!=i2.lower() and p1.lower()==p2.lower():
                     rr.append(f"~~{i1}~~ → {i2}")
-                # ubah hanya Pilot jika IGN sama
                 elif i1.lower()==i2.lower() and p1.lower()!=p2.lower():
                     rr.append(f"~~{i1}~~ → {i2} ({p2}) {em}")
-                # ubah kedua jika keduanya berbeda
                 else:
                     rr.append(f"~~{i1} ({p1})~~ → {i2} ({p2}) {em}")
             if rr:
@@ -195,7 +208,8 @@ async def ping(ctx, *, kode):
         for i in range(0, len(df), 27):
             c = str(df.iloc[i,1]).lower().strip()
             if "/" in c: c = c.split("/")[-1]
-            if c == ki: idx = i; break
+            if c == ki:
+                idx = i; break
         if idx is None:
             return await ctx.send("❌ Data tidak ditemukan.")
         tags = []
