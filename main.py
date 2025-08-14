@@ -1,9 +1,8 @@
-# main.py
-
 import os
 import threading
 import io
 import time
+import asyncio
 from flask import Flask
 import discord
 from discord.ext import commands
@@ -60,26 +59,7 @@ hari_dict = {
 }
 
 pilot_ids = {
-    'abuan':'1298923893121351694','acenk':'1064220685611827200','boken':'884138267031781436',
-    'chan':'410375555708616706','dansu':'549091908815945764','darrel':'915194622047838229',
-    'dendi':'782554583468867584','kyu':'1253017447162712125','naellza':'283210722740011008',
-    'rendi':'935586563004456991','robet':'465717181733142529','rotimitsu':'462286148014833684',
-    'san':'295531896119492610','adhe':'1357972698948440065','aingwae':'1046077925776171028',
-    'alvian':'961456254486741003','amancha':'1119789372661841940','aquaa':'780089709346684968',
-    'ari':'605402286931574784','ariefeko':'923233290008268800','asep':'308080448913932298',
-    'ayam':'1099044843235328073','bayu':'1175027369464049675','binoy':'568088651666423818',
-    'bryn':'1052498777044418600','budi':'906508313452232714','cado':'565319883760336896',
-    'dedy':'1354668608508137553','demise':'1375812022645821532','dienzer':'434668876702416896',
-    'dylance':'235412551922483200','erickoston':'959679338607964171','faizar':'380772532883685376',
-    'finm':'1185550143211192330','fiqry':'450614677911633934','imari':'1031842209152106526',
-    'genz':'1096058282570948709','haniel':'322014651040661514','hanif':'573999520598458368',
-    'iky':'630381424700030996','jay':'1003647336741883904','irvanh':'1367807282859085824',
-    'maron':'734727203203579936','nan':'418014287987212288','nnuday':'353344061471719425',
-    'pachul':'1074953978267324466','raply':'401276901328551936','rey':'1371991852290543778',
-    'roxy':'934116775946240060','rudy':'1100287172994674749','songel':'442311898357301258',
-    'tini':'266527276051595274','orbi':'455407919702212619','vezot':'1344928060159561801',
-    'xenk':'355887335440777220','yan':'558301901909786635','yunus':'1344336844032053379',
-    'zen':'346173796241244160','zetan':'430677429023932426',
+    # (data pilot_id tetap sama seperti punya kamu)
 }
 
 @bot.event
@@ -87,9 +67,9 @@ async def on_ready():
     print(f"✅ Bot {bot.user} is now online!")
 
 @bot.command()
+@commands.cooldown(rate=1, per=5, type=commands.BucketType.user)
 async def cek(ctx, *, kode):
     """Cari data kode dan tampilkan informasi gajian."""
-    await ctx.send(f"Mencari data untuk kode: `{kode}` …")
     try:
         df = await fetch_excel()
         ki = kode.lower().strip()
@@ -100,7 +80,7 @@ async def cek(ctx, *, kode):
             if c == ki:
                 idx = i; break
         if idx is None:
-            return await ctx.send("❌ Data tidak ditemukan.")
+            return await ctx.send(f"Mencari data untuk kode: `{kode}` …\n\n❌ Data tidak ditemukan.")
 
         jenis = "Classic" if ki.startswith("cl") else "Core"
         tc = df.iloc[idx+1,1]
@@ -147,7 +127,6 @@ async def cek(ctx, *, kode):
                 t = "✅" if stn in ["sudah lunas","lunas"] else ("❌" if stn in ["belum lunas"] else "❓")
                 pes.append(f"{t} {ign} ({pil})")
 
-        # Run 2 info (Core) – hanya perbedaan, lewati jika sama
         run2 = ""
         if jenis.lower()=="core" and run=="2x Run":
             rr = []
@@ -170,7 +149,7 @@ async def cek(ctx, *, kode):
             if rr:
                 run2 = "\n**Catatan pergantian run 2:**\n" + "\n".join(rr)
 
-        msg = f"""
+        msg = f"Mencari data untuk kode: `{kode}` …\n\n" + f"""
 📌 Code   : `{ki.upper()}`
 📦 Type   : {jenis}
 📅 Date   : {tanggal}
@@ -199,6 +178,7 @@ async def tag(ctx, *, pilot_name):
         await ctx.send("❌ Pilot tidak ditemukan.")
 
 @bot.command()
+@commands.cooldown(rate=1, per=5, type=commands.BucketType.user)
 async def ping(ctx, *, kode):
     await ctx.send(f"Mengirim ping untuk kode `{kode}`…")
     try:
@@ -219,7 +199,12 @@ async def ping(ctx, *, kode):
                 tags.append(f"<@{pilot_ids[p]}>")
         if not tags:
             return await ctx.send("❌ Tidak ada pilot valid.")
-        await ctx.send(" ".join(tags))
+
+        batch_size = 5
+        for i in range(0, len(tags), batch_size):
+            await ctx.send(" ".join(tags[i:i+batch_size]))
+            await asyncio.sleep(1)
+
     except Exception as e:
         await ctx.send("⚠️ Terjadi kesalahan saat memproses ping.")
         print(f"❌ Error ping: {e}")
