@@ -49,7 +49,7 @@ async def fetch_excel():
 # ———————————————————————————————————————————————————————
 
 # ——— helper ambil nilai beruntun per +26 baris —————————
-def _get_chained_value(df, base_idx, col_idx, start_offset_0_based, step=26):
+def_get_chained_value(df, base_idx, col_idx, start_offset_0_based, step=26):
     """
     Ambil nilai dari (base_idx + start_offset) pada kolom col_idx,
     lalu lanjut +step (default 26 baris) selama masih ada nilai non-kosong.
@@ -97,39 +97,55 @@ async def cek(ctx, *, kode):
         df = await fetch_excel()
         ki = kode.lower().strip()
         idx = None
+
+        # Cari blok code per lompatan 27 baris
         for i in range(0, len(df), 27):
-            c = str(df.iloc[i,1]).lower().strip()
-            if "/" in c: c = c.split("/")[-1]
+            c = str(df.iloc[i, 1]).lower().strip()
+            if "/" in c:
+                c = c.split("/")[-1]
             if c == ki:
-                idx = i; break
+                idx = i
+                break
+
         if idx is None:
             return await ctx.send(f"Mencari data untuk kode: `{kode}` …\n\n❌ Data tidak ditemukan.")
 
         jenis = "Classic" if ki.startswith("cl") else "Core"
-        tc = df.iloc[idx+1,1]
+
+        # Tanggal
+        tc = df.iloc[idx + 1, 1]
         try:
             to = pd.to_datetime(tc)
+            hari_dict = {
+                'Monday': 'Senin', 'Tuesday': 'Selasa', 'Wednesday': 'Rabu',
+                'Thursday': 'Kamis', 'Friday': 'Jumat', 'Saturday': 'Sabtu', 'Sunday': 'Minggu',
+            }
             hari = hari_dict[to.strftime("%A")]
             tanggal = f"{hari}, {to.day:02d} {to.strftime('%B')} {to.year}"
-        except:
+        except Exception:
             tanggal = str(tc)
 
-        sc = str(df.iloc[idx+1,10]).strip().lower()
-        if sc == "beres": hasil = "✅ BERES"
-        elif sc == "belum beres": hasil = "❌ BELUM BERES"
-        else: hasil = "❓ STATUS TIDAK DIKENALI"
+        # Status beres/belum
+        sc = str(df.iloc[idx + 1, 10]).strip().lower()
+        if sc == "beres":
+            hasil = "✅ BERES"
+        elif sc == "belum beres":
+            hasil = "❌ BELUM BERES"
+        else:
+            hasil = "❓ STATUS TIDAK DIKENALI"
 
-        lastp = str(df.iloc[idx+17,1]).strip()
-                run = "1x Run" if jenis=="Classic" or lastp.lower() in ["","nan"] else "2x Run"
+        # Run
+        lastp = str(df.iloc[idx + 17, 1]).strip()
+        run = "1x Run" if jenis == "Classic" or lastp.lower() in ["", "nan"] else "2x Run"
 
-                # ——— GAJI & MOUNT ——————————————————————————————————————
-        # Pastikan aman kalau 'sc' bukan string
+        # ——— GAJI & MOUNT ——————————————————————————————————————
         sc_lc = sc.lower() if isinstance(sc, str) else ""
-
-        # B24 (offset 0-based: +23), lanjut B50 (+49), dst per +26 baris
+        # Gaji: B24 (+23), lanjut +26: B50 (+49), dst → ambil terakhir yang terisi
         gaji_val = _get_chained_value(df, idx, col_idx=1, start_offset_0_based=23, step=26) or "-"
 
-        # Classic: Gaji + Mount (G23: +22), Harga Mount (G22: +21) lanjut per +26 baris
+        # Classic only:
+        #   Gaji + Mount: G23 (+22), G49 (+48), ...
+        #   Harga Mount : G22 (+21), G48 (+47), ...
         gaji_plus_mount_val = "-"
         harga_mount_val = "-"
         if jenis == "Classic":
@@ -140,10 +156,7 @@ async def cek(ctx, *, kode):
             if hm:
                 harga_mount_val = hm
 
-        # Label “Gaji” vs “Gaji sementara” mengikuti status beres/belum
         gaji_label = "Gaji" if sc_lc == "beres" else "Gaji sementara"
-
-        # Rangkai blok teks gaji & mount
         gaji_block_lines = [f"💰 {gaji_label} : {gaji_val}"]
         if jenis == "Classic":
             gaji_block_lines.append(f"💰 Gaji + Mount : {gaji_plus_mount_val}")
@@ -151,17 +164,18 @@ async def cek(ctx, *, kode):
         gaji_block = "\n".join(gaji_block_lines)
         # ———————————————————————————————————————————————————————
 
-
+        # Drop item
         drops = []
         map_rows = (
-            [(idx+9,idx+12),(idx+13,idx+14),(idx+16,idx+17)]
-            if jenis=="Classic"
-            else [(idx+9,idx+10),(idx+12,idx+13),(idx+15,idx+16)]
+            [(idx + 9, idx + 12), (idx + 13, idx + 14), (idx + 16, idx + 17)]
+            if jenis == "Classic"
+            else [(idx + 9, idx + 10), (idx + 12, idx + 13), (idx + 15, idx + 16)]
         )
         for ir, hr in map_rows:
-            for c in range(3,8):
-                if ir>=len(df) or hr>=len(df): continue
-                itm, hrg = df.iat[ir,c], df.iat[hr,c]
+            for c in range(3, 8):
+                if ir >= len(df) or hr >= len(df):
+                    continue
+                itm, hrg = df.iat[ir, c], df.iat[hr, c]
                 if pd.notna(itm) and str(itm).strip():
                     s = str(itm).strip()
                     if pd.notna(hrg) and str(hrg).strip():
@@ -169,45 +183,52 @@ async def cek(ctx, *, kode):
                     else:
                         drops.append(f"❌ {s}")
 
+        # Peserta
         pes = []
         for j in range(8):
-            r = idx+10+j
-            ign = str(df.iloc[r,0]).strip()
-            pil = str(df.iloc[r,1]).strip()
-            st_i = 13 if jenis=="Core" else 14
-            stn = str(df.iloc[r,st_i]).strip().lower()
+            r = idx + 10 + j
+            ign = str(df.iloc[r, 0]).strip()
+            pil = str(df.iloc[r, 1]).strip()
+            st_i = 13 if jenis == "Core" else 14
+            stn = str(df.iloc[r, st_i]).strip().lower()
             if pd.notna(ign) and ign:
-                t = "✅" if stn in ["sudah lunas","lunas"] else ("❌" if stn in ["belum lunas"] else "❓")
+                t = "✅" if stn in ["sudah lunas", "lunas"] else ("❌" if stn in ["belum lunas"] else "❓")
                 pes.append(f"{t} {ign} ({pil})")
 
+        # Catatan run 2 (Core 2x Run)
         run2 = ""
-        if jenis.lower()=="core" and run=="2x Run":
+        if jenis.lower() == "core" and run == "2x Run":
             rr = []
             for j in range(8):
-                b = idx+10+j
-                i1 = str(df.iloc[b,0]).strip()
-                p1 = str(df.iloc[b,1]).strip()
-                i2 = str(df.iloc[b,15]).strip()
-                p2 = str(df.iloc[b,16]).strip()
-                s2 = str(df.iloc[b,18]).strip().lower()
-                if not i2 and not p2: continue
-                if i1.lower()==i2.lower() and p1.lower()==p2.lower(): continue
-                em = "✅" if s2=="lunas" else ("❌" if s2=="belum lunas" else "❓")
-                if i1.lower()!=i2.lower() and p1.lower()==p2.lower():
+                b = idx + 10 + j
+                i1 = str(df.iloc[b, 0]).strip()
+                p1 = str(df.iloc[b, 1]).strip()
+                i2 = str(df.iloc[b, 15]).strip()
+                p2 = str(df.iloc[b, 16]).strip()
+                s2 = str(df.iloc[b, 18]).strip().lower()
+                if not i2 and not p2:
+                    continue
+                if i1.lower() == i2.lower() and p1.lower() == p2.lower():
+                    continue
+                em = "✅" if s2 == "lunas" else ("❌" if s2 == "belum lunas" else "❓")
+                if i1.lower() != i2.lower() and p1.lower() == p2.lower():
                     rr.append(f"~~{i1}~~ → {i2}")
-                elif i1.lower()==i2.lower() and p1.lower()!=p2.lower():
+                elif i1.lower() == i2.lower() and p1.lower() != p2.lower():
                     rr.append(f"~~{i1}~~ → {i2} ({p2}) {em}")
                 else:
                     rr.append(f"~~{i1} ({p1})~~ → {i2} ({p2}) {em}")
             if rr:
                 run2 = "\n**Catatan pergantian run 2:**\n" + "\n".join(rr)
 
+        # Pesan
         msg = f"Mencari data untuk kode: `{kode}` …\n\n" + f"""
 📌 Code   : `{ki.upper()}`
 📦 Type   : {jenis}
 📅 Date   : {tanggal}
 💸 Status : {hasil}
 🔁 Run    : {run}
+
+{gaji_block}
 
 🎁 Drop Item:
 {chr(10).join(drops)}
