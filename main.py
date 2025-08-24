@@ -48,6 +48,29 @@ async def fetch_excel():
     return _excel_cache
 # ———————————————————————————————————————————————————————
 
+# ——— helper ambil nilai beruntun per +26 baris —————————
+def _get_chained_value(df, base_idx, col_idx, start_offset_0_based, step=26):
+    """
+    Ambil nilai dari (base_idx + start_offset) pada kolom col_idx,
+    lalu lanjut +step (default 26 baris) selama masih ada nilai non-kosong.
+    Kembalikan nilai terakhir yang non-kosong (stripped).
+    """
+    r = start_offset_0_based
+    last_val = None
+    n = len(df)
+    while True:
+        row = base_idx + r
+        if row >= n:
+            break
+        val = df.iloc[row, col_idx]
+        if pd.notna(val) and str(val).strip():
+            last_val = str(val).strip()
+            r += step
+        else:
+            break
+    return last_val
+# ———————————————————————————————————————————————————————
+
 # ——— DISCORD BOT SETUP ———————————————————————————————————
 intents = discord.Intents.default()
 intents.message_content = True
@@ -82,32 +105,6 @@ async def cek(ctx, *, kode):
         if idx is None:
             return await ctx.send(f"Mencari data untuk kode: `{kode}` …\n\n❌ Data tidak ditemukan.")
 
-        # ———————————————————————————————————————————————————————
-# ——— helper ambil nilai beruntun per +26 baris —————————
-def _get_chained_value(df, base_idx, col_idx, start_offset_0_based, step=26):
-    """
-    Ambil nilai dari (base_idx + start_offset) pada kolom col_idx,
-    lalu lanjut +step (default 26 baris) selama masih ada nilai non-kosong.
-    Kembalikan nilai terakhir yang non-kosong (stripped).
-    """
-    r = start_offset_0_based
-    last_val = None
-    n = len(df)
-    while True:
-        row = base_idx + r
-        if row >= n:
-            break
-        val = df.iloc[row, col_idx]
-        if pd.notna(val) and str(val).strip():
-            last_val = str(val).strip()
-            r += step
-        else:
-            break
-    return last_val
-# ———————————————————————————————————————————————————————
-
-run = "1x Run" if jenis=="Classic" or lastp.lower() in ["","nan"] else "2x Run"
-
         jenis = "Classic" if ki.startswith("cl") else "Core"
         tc = df.iloc[idx+1,1]
         try:
@@ -123,7 +120,37 @@ run = "1x Run" if jenis=="Classic" or lastp.lower() in ["","nan"] else "2x Run"
         else: hasil = "❓ STATUS TIDAK DIKENALI"
 
         lastp = str(df.iloc[idx+17,1]).strip()
-        run = "1x Run" if jenis=="Classic" or lastp.lower() in ["","nan"] else "2x Run"
+                run = "1x Run" if jenis=="Classic" or lastp.lower() in ["","nan"] else "2x Run"
+
+                # ——— GAJI & MOUNT ——————————————————————————————————————
+        # Pastikan aman kalau 'sc' bukan string
+        sc_lc = sc.lower() if isinstance(sc, str) else ""
+
+        # B24 (offset 0-based: +23), lanjut B50 (+49), dst per +26 baris
+        gaji_val = _get_chained_value(df, idx, col_idx=1, start_offset_0_based=23, step=26) or "-"
+
+        # Classic: Gaji + Mount (G23: +22), Harga Mount (G22: +21) lanjut per +26 baris
+        gaji_plus_mount_val = "-"
+        harga_mount_val = "-"
+        if jenis == "Classic":
+            gpm = _get_chained_value(df, idx, col_idx=6, start_offset_0_based=22, step=26)
+            if gpm:
+                gaji_plus_mount_val = gpm
+            hm = _get_chained_value(df, idx, col_idx=6, start_offset_0_based=21, step=26)
+            if hm:
+                harga_mount_val = hm
+
+        # Label “Gaji” vs “Gaji sementara” mengikuti status beres/belum
+        gaji_label = "Gaji" if sc_lc == "beres" else "Gaji sementara"
+
+        # Rangkai blok teks gaji & mount
+        gaji_block_lines = [f"💰 {gaji_label} : {gaji_val}"]
+        if jenis == "Classic":
+            gaji_block_lines.append(f"💰 Gaji + Mount : {gaji_plus_mount_val}")
+            gaji_block_lines.append(f"🏷️ Harga Mount  : {harga_mount_val}")
+        gaji_block = "\n".join(gaji_block_lines)
+        # ———————————————————————————————————————————————————————
+
 
         drops = []
         map_rows = (
@@ -181,7 +208,6 @@ run = "1x Run" if jenis=="Classic" or lastp.lower() in ["","nan"] else "2x Run"
 📅 Date   : {tanggal}
 💸 Status : {hasil}
 🔁 Run    : {run}
-{gaji_block}
 
 🎁 Drop Item:
 {chr(10).join(drops)}
