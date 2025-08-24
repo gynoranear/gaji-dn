@@ -48,27 +48,42 @@ async def fetch_excel():
     return _excel_cache
 # ———————————————————————————————————————————————————————
 
-# ——— helper ambil nilai beruntun per +26 baris —————————
-def _get_chained_value(df, base_idx, col_idx, start_offset_0_based, step=26):
+# ——— helper ambil nilai dalam blok-blok dengan kode yang sama ———
+def _get_value_same_code(df, base_idx, col_idx, row_offset_0, block_size=27, code_col_idx=1):
     """
-    Ambil nilai dari (base_idx + start_offset) pada kolom col_idx,
-    lalu lanjut +step (default 26 baris) selama masih ada nilai non-kosong.
-    Kembalikan nilai terakhir yang non-kosong (stripped).
+    Ambil nilai pada (base_idx + row_offset_0, col_idx),
+    lalu lanjut ke blok berikutnya (+block_size) HANYA jika header kode (kolom code_col_idx)
+    masih sama (normalisasi lower() & potong setelah '/').
+    Kembalikan nilai terakhir yang non-kosong.
     """
-    r = start_offset_0_based
+    def _norm(x):
+        s = str(x).lower().strip()
+        return s.split("/")[-1] if "/" in s else s
+
+    code0 = _norm(df.iloc[base_idx, code_col_idx])
     last_val = None
+    i = base_idx
     n = len(df)
+
     while True:
-        row = base_idx + r
+        row = i + row_offset_0
         if row >= n:
             break
         val = df.iloc[row, col_idx]
         if pd.notna(val) and str(val).strip():
             last_val = str(val).strip()
-            r += step
-        else:
+
+        i_next = i + block_size
+        if i_next >= n:
             break
+        # berhenti jika blok berikutnya kodenya beda
+        if _norm(df.iloc[i_next, code_col_idx]) != code0:
+            break
+        i = i_next
+
     return last_val
+# ———————————————————————————————————————————————————————
+
 
 # ——— DISCORD BOT SETUP ———————————————————————————————————
 intents = discord.Intents.default()
@@ -137,25 +152,28 @@ async def cek(ctx, *, kode):
         lastp = str(df.iloc[idx + 17, 1]).strip()
         run = "1x Run" if jenis == "Classic" or lastp.lower() in ["", "nan"] else "2x Run"
 
-        # ——— GAJI & MOUNT ——————————————————————————————————————
-        sc_lc = sc.lower() if isinstance(sc, str) else ""
-        # Gaji: B24 (+23), lanjut +26: B50 (+49), dst → ambil terakhir yang terisi
-        gaji_val = _get_chained_value(df, idx, col_idx=1, start_offset_0_based=23, step=26) or "-"
+                # ——— GAJI & MOUNT (batasi pada blok dengan kode yang sama) ———
+        # sc sudah lowercase di atas
+        sc_lc = sc if isinstance(sc, str) else ""
+
+        # Gaji: B24 → offset 0-based +23; cek blok-blok berikutnya yang MASIH kode sama
+        gaji_val = _get_value_same_code(df, base_idx=idx, col_idx=1, row_offset_0=23, block_size=27) or "-"
 
         # Classic only:
-        #   Gaji + Mount: G23 (+22), G49 (+48), ...
-        #   Harga Mount : G22 (+21), G48 (+47), ...
+        #   Gaji + Mount : G23 → offset +22
+        #   Harga Mount  : G22 → offset +21
         gaji_plus_mount_val = "-"
         harga_mount_val = "-"
         if jenis == "Classic":
-            gpm = _get_chained_value(df, idx, col_idx=6, start_offset_0_based=22, step=26)
+            gpm = _get_value_same_code(df, base_idx=idx, col_idx=6, row_offset_0=22, block_size=27)
             if gpm:
                 gaji_plus_mount_val = gpm
-            hm = _get_chained_value(df, idx, col_idx=6, start_offset_0_based=21, step=26)
+            hm = _get_value_same_code(df, base_idx=idx, col_idx=6, row_offset_0=21, block_size=27)
             if hm:
                 harga_mount_val = hm
 
         gaji_label = "Gaji" if sc_lc == "beres" else "Gaji sementara"
+
         gaji_block_lines = [f"💰 {gaji_label} : {gaji_val}"]
         if jenis == "Classic":
             gaji_block_lines.append(f"💰 Gaji + Mount : {gaji_plus_mount_val}")
