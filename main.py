@@ -82,6 +82,32 @@ async def cek(ctx, *, kode):
         if idx is None:
             return await ctx.send(f"Mencari data untuk kode: `{kode}` …\n\n❌ Data tidak ditemukan.")
 
+        # ———————————————————————————————————————————————————————
+# ——— helper ambil nilai beruntun per +26 baris —————————
+def _get_chained_value(df, base_idx, col_idx, start_offset_0_based, step=26):
+    """
+    Ambil nilai dari (base_idx + start_offset) pada kolom col_idx,
+    lalu lanjut +step (default 26 baris) selama masih ada nilai non-kosong.
+    Kembalikan nilai terakhir yang non-kosong (stripped).
+    """
+    r = start_offset_0_based
+    last_val = None
+    n = len(df)
+    while True:
+        row = base_idx + r
+        if row >= n:
+            break
+        val = df.iloc[row, col_idx]
+        if pd.notna(val) and str(val).strip():
+            last_val = str(val).strip()
+            r += step
+        else:
+            break
+    return last_val
+# ———————————————————————————————————————————————————————
+
+run = "1x Run" if jenis=="Classic" or lastp.lower() in ["","nan"] else "2x Run"
+
         jenis = "Classic" if ki.startswith("cl") else "Core"
         tc = df.iloc[idx+1,1]
         try:
@@ -155,6 +181,7 @@ async def cek(ctx, *, kode):
 📅 Date   : {tanggal}
 💸 Status : {hasil}
 🔁 Run    : {run}
+{gaji_block}
 
 🎁 Drop Item:
 {chr(10).join(drops)}
