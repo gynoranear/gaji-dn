@@ -49,7 +49,7 @@ async def fetch_excel():
 # ———————————————————————————————————————————————————————
 
 # ——— helper ambil nilai beruntun per +26 baris —————————
-def_get_chained_value(df, base_idx, col_idx, start_offset_0_based, step=26):
+def _get_chained_value(df, base_idx, col_idx, start_offset_0_based, step=26):
     """
     Ambil nilai dari (base_idx + start_offset) pada kolom col_idx,
     lalu lanjut +step (default 26 baris) selama masih ada nilai non-kosong.
@@ -69,7 +69,6 @@ def_get_chained_value(df, base_idx, col_idx, start_offset_0_based, step=26):
         else:
             break
     return last_val
-# ———————————————————————————————————————————————————————
 
 # ——— DISCORD BOT SETUP ———————————————————————————————————
 intents = discord.Intents.default()
